@@ -2,49 +2,82 @@ function loadComplete() {
     M.AutoInit();
 }
 
+let Loading = false;
+function showLoadingDialog(title) {
+    Loading = true;
+    Swal.fire({
+        title: title,
+        // html: html,
+        timer: 2000,
+        allowOutsideClick: false,
+        willOpen: () => {
+            Swal.showLoading();
+            timerInterval = setInterval(() => {
+                if (Loading) {
+                    Swal.increaseTimer(2000);
+                } else {
+                    console.log("Loading complete");
+                    Swal.stopTimer();
+                    Swal.hideLoading();
+                    Swal.close();
+                    clearInterval(timerInterval);
+                }
+            }, 100);
+        }
+    }).then(() => { });
+
+    let elem = [...document.getElementsByClassName("swal2-loader")[0].parentElement.children];
+    elem.forEach(element => {
+        if (!element.className.includes("swal2-loader"))
+            element.style.display = "none";
+    });
+}
+
 function createNewTest() {
-    let testName = document.getElementById("testName").value;
-    let jmeterVersion = document.getElementById("jmeterVersion").value;
-    let MasterCount = document.getElementById("MasterCount").value;
-    let SlaveCount = document.getElementById("SlaveCount").value;
+    showLoadingDialog('Creating New Instances');
 
-    console.log(testName, jmeterVersion, MasterCount, SlaveCount);// Send test data to the server using AJAX
+    var MasterNo = document.getElementById("MasterNo").value;
+    var SlaveNo = document.getElementById("SlaveNo").value;
+    var InstanceType = document.getElementById("InstanceType").value;
+    var InstanceName = document.getElementById("InstanceName").value;
+    var JmeterVersion = document.getElementById("JmeterVersion").value;
+    var jwtToken = document.getElementById("jwtToken").value;
 
+    // Send create instance data to the server using AJAX
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "dashboard.php", true);
+    xhr.open("POST", "../Api.php", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xhr.onreadystatechange = function () {
-        if (xhr.readyState == 4) {
-            if (xhr.status == 200) {
-                console.log(xhr.responseText);
+        if (xhr.readyState == 4 && xhr.status == 200) {
+            console.log(xhr.responseText);
+            Loading = false;
 
-                // Check for specific response from the server
-                if (xhr.responseText.trim() === "RowInsertedSuccessfully") {
-                    Swal.fire({
-                        icon: "success",
-                        title: "Success",
-                        text: "Test Added!"
-                    }).then((result) => {
-                        window.location.href = "/Dashboard";
-                    });
-                } else {
-                    Swal.fire({
-                        icon: "error",
-                        title: "Oops...",
-                        text: xhr.responseText.trim()
-                    });
-                }
-            } else {
-                console.error("Error:", xhr.status);
+            // Redirect to the dashboard if login is successful
+            if (xhr.responseText.includes("CreatedSuccessfully")) {
+                Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text: "Created Successfully"
+                }).then((result) => {
+                    window.location.href = "/Dashboard";
+                });
+                return;
             }
+            Swal.fire({
+                icon: "error",
+                title: "Oops...",
+                text: "Creation Failed"
+            });
         }
     };
 
-    // Format the data in the required POST parameter format
-    var data = "operation=insert&testName=" + testName + "&jmeterVersion=" + jmeterVersion + "&MasterCount=" + MasterCount + "&SlaveCount=" + SlaveCount;
-
-    // Send the data to the server
-    xhr.send(data);
+    xhr.send("operation=create" +
+        "&jwtToken=" + jwtToken +
+        "&MasterNo=" + MasterNo +
+        "&SlaveNo=" + SlaveNo +
+        "&InstanceType=" + InstanceType +
+        "&InstanceName=" + InstanceName +
+        "&JmeterVersion=" + JmeterVersion);
 }
 
 function deleteTest(id) {
@@ -58,8 +91,9 @@ function deleteTest(id) {
         confirmButtonText: "Yes, delete it!"
     }).then((result) => {
         if (result.isConfirmed) {
+            showLoadingDialog('Deleting Instances');
             var xhr = new XMLHttpRequest();
-            xhr.open("POST", "dashboard.php", true);
+            xhr.open("POST", "../Api.php", true);
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
             xhr.onreadystatechange = function () {
                 if (xhr.readyState == 4) {
@@ -67,7 +101,7 @@ function deleteTest(id) {
                         console.log(xhr.responseText);
 
                         // Check for specific response from the server
-                        if (xhr.responseText.trim() === "RowDeletedSuccessfully") {
+                        if (xhr.responseText.trim().includes("DeletedSuccessfully")) {
                             Swal.fire({
                                 icon: "success",
                                 title: "Success",
@@ -88,14 +122,61 @@ function deleteTest(id) {
                 }
             };
 
+            var jwtToken = document.getElementById("jwtToken").value;
             // Format the data in the required POST parameter format
-            var data = "operation=delete&testIdToDelete=" + id;
+            var data = "operation=delete&testIdToDelete=" + id
+                + "&jwtToken=" + jwtToken;
 
             // Send the data to the server
             xhr.send(data);
         }
     });
 }
+
+function configureTest(id) {
+    showLoadingDialog('Configuring Instances');
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "../Api.php", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+                console.log(xhr.responseText);
+
+                // Check for specific response from the server
+                if (xhr.responseText.trim().includes("ConfiguredSuccessfully")) {
+                    Swal.fire({
+                        icon: "success",
+                        title: "Success",
+                        text: "Test Configured Successfully!"
+                    }).then((result) => {
+                        window.location.href = "/Dashboard";
+                    });
+                } else {
+                    str = xhr.responseText.slice(1)
+                    str = str.replaceAll("\"}ConfiguredUnsuccessfully", "").split("{\"error\": \"")[1]
+                    Swal.fire({
+                        icon: "error",
+                        title: "Oops...",
+                        html: "<p>Test was not Configured<br>" + str + "</p>"
+                    });
+                }
+            } else {
+                console.error("Error:", xhr.status);
+            }
+        }
+    };
+
+    var jwtToken = document.getElementById("jwtToken").value;
+    // Format the data in the required POST parameter format
+    var data = "operation=configureSlave&id=" + id
+        + "&jwtToken=" + jwtToken;
+
+    console.log(data)
+    // Send the data to the server
+    xhr.send(data);
+}
+
 
 function logout() {
     Swal.fire({
@@ -141,130 +222,110 @@ function logout() {
 function editTest(id) {
     (async () => {
         const { value: formValues } = await Swal.fire({
-            title: "Edit Performance Test",
-            html: `<div class="row">
-                        <div class="input-field">
-                            <input type="text" id="testNameEdit" name="testName" required style="color: white;">
-                            <label for="testName">Test Name</label>
+            title: "Upload CSV",
+            html: `
+                    <div class="">
+                        <div class="file-field input-field">
+                            <button class="swal2-confirm swal2-styled btn" type="submit" name="action"
+                                style="margin:0px;background-color:#66e088;border-radius: 1vh;display: flex;flex-direction: row;flex-wrap: nowrap;align-content: center;justify-content: center;align-items: center;"
+                                >
+                                <span>CSV File</span>
+                                <input id="CSVFileInput" type="file">
+                            </button>
+                            <div class="file-path-wrapper">
+                                <input class="file-path validate" type="text" placeholder="Upload CSV files">
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="input-field">
-                            <select id="jmeterVersionEdit" required>
-                                <option value="1.4.5">1.4.5</option>
-                                <option value="1.5.76">1.5.76</option>
-                                <option value="2.3.5">2.3.5</option>
-                            </select>
-                            <label>JMeter version</label>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="input-field">
-                            <select id="MasterCountEdit" required>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                                <option value="9">9</option>
-                            </select>
-                            <label>Master Count</label>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="input-field">
-                            <select id="SlaveCountEdit" required>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                                <option value="9">9</option>
-                            </select>
-                            <label>Slave Count</label>
-                        </div>
-                    </div>`,
+                    `,
             focusConfirm: false,
-            didOpen: () => {
-                let testName = document.getElementById("testName" + id).innerText;
-                let jmeterVersion = document.getElementById("jmeterVersion" + id).innerText;
-                let MasterCount = document.getElementById("MasterCount" + id).innerText;
-                let SlaveCount = document.getElementById("SlaveCount" + id).innerText;
-
-                let testNameEdit = document.getElementById("testNameEdit");
-                let jmeterVersionEdit = document.getElementById("jmeterVersionEdit");
-                let MasterCountEdit = document.getElementById("MasterCountEdit");
-                let SlaveCountEdit = document.getElementById("SlaveCountEdit");
-
-                testNameEdit.value = testName;
-                jmeterVersionEdit.value = jmeterVersion;
-                MasterCountEdit.value = MasterCount;
-                SlaveCountEdit.value = SlaveCount;
-
-                M.AutoInit();
-
-                let elems = document.getElementsByClassName("select-wrapper");
-                Array.from(elems).forEach((elem) => {
-                    if (!elem.parentElement.className.includes("input-field")) {
-                        elem.style.display = "none";
-                    }
-                });
-
-            },
             preConfirm: () => {
-                return [
-                    document.getElementById("testNameEdit").value,
-                    document.getElementById("jmeterVersionEdit").value,
-                    document.getElementById("MasterCountEdit").value,
-                    document.getElementById("SlaveCountEdit").value
-                ];
+                return document.getElementById("CSVFileInput");
             }
         });
         if (formValues) {
-            // Swal.fire(JSON.stringify(formValues));
-            console.log(formValues);
+            // Check if a file is selected
+            if (formValues.files.length > 0) {
+                var file = formValues.files[0];
+                var reader = new FileReader();
 
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "dashboard.php", true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState == 4) {
-                    if (xhr.status == 200) {
-                        console.log(xhr.responseText);
+                // Read the file as text
+                reader.readAsText(file);
 
-                        // Check for specific response from the server
-                        if (xhr.responseText.trim().includes("RowEditedSuccessfully")) {
-                            Swal.fire({
-                                icon: "success",
-                                title: "Success",
-                                text: "Test Edited!"
-                            }).then((result) => {
-                                window.location.href = "/Dashboard";
-                            });
-                        } else {
-                            Swal.fire({
-                                icon: "error",
-                                title: "Oops...",
-                                text: "Test was not Edited"
-                            });
+                // When the file is loaded
+                reader.onload = function (event) {
+                    var csvContent = event.target.result;
+                    let csvData = csvContent.trim().split("\r\n");
+                    for (let i = 0; i < csvData.length; i++) {
+                        csvData[i] = csvData[i].trim().split(",")
+                        for (let j = 0; j < csvData[i].length; j++) {
+                            csvData[i][j] = csvData[i][j].trim()
                         }
-                    } else {
-                        console.error("Error:", xhr.status);
                     }
+
+                    let elem = document.getElementById("slave_no" + id).innerText.replaceAll("info", "");
+
+                    // Split the CSV data into 5 equal parts
+                    const totalRows = csvData.length;
+                    const parts = elem;
+                    const rowsPerPart = Math.ceil(totalRows / parts);
+
+                    // Create an array to store the parts
+                    let csvDataParts = [];
+
+                    // Iterate over the parts
+                    for (let i = 0; i < parts; i++) {
+                        // Get the start and end indices for each part
+                        const start = i * rowsPerPart;
+                        const end = Math.min((i + 1) * rowsPerPart, totalRows);
+
+                        // Extract the rows for the current part
+                        const partData = csvData.slice(start, end);
+
+                        // Specify the desired file name (e.g., "your_filename.csv")
+                        const fileName = `csv_Data_${i}.csv`;
+
+                        // Append the file name to the Blob constructor
+                        var csvBlob = new Blob([partData.map(row => row.join(",")).join("\r\n")], { type: "text/csv" });
+                        csvBlob.lastModifiedDate = new Date();
+                        csvBlob.name = fileName;
+
+                        // Store the part in the array
+                        csvDataParts.push(csvBlob);
+                    }
+
+                    // Display the 5 equal parts of the CSV content
+                    let ip_address = "54.91.20.124"
+                    let csvDataFile = csvDataParts[0]
+                    let jwtToken = document.getElementById("jwtToken").value;
+                    showLoadingDialog('Uploading Files');
+
+                    var formData = new FormData();
+                    formData.append('csvData', csvDataFile);  // Replace with your actual file variable
+                    formData.append('ip_address', ip_address);
+                    formData.append('operation', 'uploadData');
+                    formData.append('jwtToken', jwtToken);
+
+                    // Assuming you have the correct endpoint for your API.php
+                    const apiUrl = '../Api.php';
+
+                    fetch(apiUrl, {
+                        method: 'POST',
+                        body: formData,
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            // Handle the response data here
+                            console.log('Response:', data);
+                        })
+                        .catch(error => {
+                            // Handle errors here
+                            console.error('Error:', error);
+                        });
                 }
-            };
-
-            // Format the data in the required POST parameter format
-            var data = "operation=edit&testIdToEdit=" + id + "&testName=" + formValues[0] + "&jmeterVersion=" + formValues[1] + "&MasterCount=" + formValues[2] + "&SlaveCount=" + formValues[3];
-
-            // Send the data to the server
-            xhr.send(data);
+            } else {
+                alert("Please select a CSV file.");
+            }
         }
     })()
 }

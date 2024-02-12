@@ -2,38 +2,35 @@
 session_start();
 
 // Include the database connection file
-require_once('../database.php');
-require_once('./dashboard.php');
+require_once('../Test/database.php');
 
 // Check if the user is logged in
-if(!isset($_SESSION['username'])) {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-    header("Location: ../"); // Redirect to login page if not logged in
-    exit();
-}
+// if (!isset($_SESSION['username'])) {
+//     error_reporting(E_ALL);
+//     ini_set('display_errors', 1);
+//     header("Location: ../"); // Redirect to login page if not logged in
+//     exit();
+// }
 
 // Database connection
 $conn = connectToDatabase();
 
 // Check connection
-if($conn->connect_error) {
-    die("Connection failed: ".$conn->connect_error);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 
 $tableName = 'performance_test';
-// if(isset($_SESSION['test'])) {
-//     $tableName = $tableName."test";
-// }
 
-if(!doesTableExist($tableName, $conn)) {
-    // If not, create the table
-    createPerformanceTestTable($conn, $tableName);
+// Check if the table exists
+$sqlCheckTable = "SHOW TABLES LIKE '$tableName'";
+$resultCheckTable = $conn->query($sqlCheckTable);
+
+if ($resultCheckTable->num_rows > 0) {
+    // Fetch current running clusters from the database
+    $sql = "SELECT * FROM $tableName";
+    $result = $conn->query($sql);
 }
-// Fetch current running clusters from the database
-$sql = "SELECT * FROM $tableName";
-$result = $conn->query($sql);
-
 
 // Close the database connection
 closeConnection($conn);
@@ -62,32 +59,34 @@ closeConnection($conn);
 </head>
 
 <body onload="loadComplete()">
-    <div class="row">
+    <div class="row" style="
+    float: left;
+">
         <h6>Logged is as
             <?php echo $_SESSION['username']; ?>
         </h6>
-        <button class="swal2-confirm swal2-styled" type="submit" name="action"
+        <!-- <button class="swal2-confirm swal2-styled" type="submit" name="action"
             style="margin:0px;border-radius: 1vh;display: flex;flex-direction: row;flex-wrap: nowrap;align-content: center;justify-content: center;align-items: center;"
             onclick="logout()">logout
             <i class="material-icons right">logout</i>
-        </button>
+        </button> -->
     </div>
 
-    <h3 class="center">Performance Dashboard</h3>
-    <br>
-    <br>
+    <h3 class="center" style="
+    margin: 0px;
+    padding: 30px;
+">Performance Dashboard</h3>
     <h5>Running Tests :-</h5>
     <div>
         <table class="striped center" style="border: 2px solid rgba(255,255,255,0.12);">
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Name</th>
+                    <th>Instance Name</th>
+                    <th>Instance Type</th>
                     <th>JMeter Version</th>
                     <th>Master Count</th>
-                    <th>Master Config</th>
                     <th>Slave Count</th>
-                    <th>Slave Config</th>
                     <th></th>
                 </tr>
             </thead>
@@ -95,16 +94,15 @@ closeConnection($conn);
             <tbody>
                 <?php
                 // Display data in the table
-                if($result->num_rows > 0) {
-                    while($row = $result->fetch_assoc()) {
+                if (isset($result) && $result->num_rows > 0) {
+                    while ($row = $result->fetch_assoc()) {
                         echo "<tr>";
-                        echo "<td id=\"id".$row["id"]."\">".$row["id"]."</td>";
-                        echo "<td id=\"testName".$row["id"]."\">".$row["testName"]."</td>";
-                        echo "<td id=\"jmeterVersion".$row["id"]."\">".$row["jmeterVersion"]."</td>";
-                        echo "<td id=\"MasterCount".$row["id"]."\">".$row["MasterCount"]."</td>";
-                        echo "<td id=\"MasterConfig".$row["id"]."\">".str_replace(";", "<br>", $row["MasterConfig"])."</td>";
-                        echo "<td id=\"SlaveCount".$row["id"]."\">".$row["SlaveCount"]."</td>";
-                        echo "<td id=\"SlaveConfig".$row["id"]."\">".str_replace(";", "<br>", $row["SlaveConfig"])."</td>";
+                        echo "<td id=\"id" . $row["id"] . "\">" . $row["id"] . "</td>";
+                        echo "<td id=\"instance_name" . $row["id"] . "\">" . $row["instance_name"] . "</td>";
+                        echo "<td id=\"InstanceType" . $row["id"] . "\">" . $row["InstanceType"] . "</td>";
+                        echo "<td id=\"jmeter_version" . $row["id"] . "\">" . $row["jmeter_version"] . "</td>";
+                        echo '<td class="tooltipped" data-position="bottom" data-tooltip="Master IP<br>' . $row["masterIP"] . '" id="master_no' . $row["id"] . '"> ' . $row["master_no"] . '<i class="close material-icons" style="font-size: 30px;vertical-align: middle;margin-left: 20px;">info</i></td>';
+                        echo '<td class="tooltipped" data-position="bottom" data-tooltip="Slave IP<br>' . $row["slaveIP"] . '" id="slave_no' . $row["id"] . '"> ' . $row["slave_no"] . '<i class="close material-icons" style="font-size: 30px;vertical-align: middle;margin-left: 20px;">info</i></td>';
                         echo '
                         <td style="
                         display: flex;
@@ -114,16 +112,23 @@ closeConnection($conn);
                         justify-content: space-around;
                         align-items: stretch;
                     ">
+                    <button class="swal2-confirm swal2-styled" type="submit" name="action"
+                        style="margin:0px;background-color:#7066e0;border-radius: 1vh;display: flex;flex-direction: row;flex-wrap: nowrap;align-content: center;justify-content: center;align-items: center;"
+                        onclick="configureTest(' . $row["id"] . ')">
+                        <i class="material-icons" style="
+                        margin: 0px;
+                    ">settings</i>
+                    </button>
                             <button class="swal2-confirm swal2-styled" type="submit" name="action"
                                 style="margin:0px;background-color:#e06666;border-radius: 1vh;display: flex;flex-direction: row;flex-wrap: nowrap;align-content: center;justify-content: center;align-items: center;"
-                                onclick="deleteTest('.$row["id"].')">
+                                onclick="deleteTest(' . $row["id"] . ')">
                                 <i class="material-icons" style="
                                 margin: 0px;
                             ">delete</i>
                             </button>
                             <button class="swal2-confirm swal2-styled" type="submit" name="action"
                                 style="margin:0px;background-color:#66e088;border-radius: 1vh;display: flex;flex-direction: row;flex-wrap: nowrap;align-content: center;justify-content: center;align-items: center;"
-                                onclick="editTest('.$row["id"].')">
+                                onclick="editTest(' . $row["id"] . ')">
                                 <i class="material-icons" style="
                                 margin: 0px;
                             ">edit</i>
@@ -138,29 +143,47 @@ closeConnection($conn);
             </tbody>
         </table>
     </div>
-    <br>
-    <br>
     <h5>Create New :-</h5>
     <div style="background-color:rgba(61, 61, 61, 0.5);border-radius: 1vh;padding:10px 30px;width:50%">
-        <div class="row">
+        <div class="row" style="display:none">
             <div class="input-field">
-                <input type="text" id="testName" name="testName" required style="color: white;">
-                <label for="testName">Test Name</label>
+                <input type="text" id="jwtToken" name="jwtToken" required style="color: white;"
+                    value="<?php echo $_SESSION['jwtToken']; ?>">
+                <label for="jwtToken">jwt Token</label>
             </div>
         </div>
         <div class="row">
             <div class="input-field">
-                <select id="jmeterVersion" required>
-                    <option value="1.4.5">1.4.5</option>
-                    <option value="1.5.76">1.5.76</option>
-                    <option value="2.3.5">2.3.5</option>
+                <input type="text" id="InstanceName" name="InstanceName"
+                    value="Test_<?php echo random_int(100, 100000) ?>" required style="color: white;">
+                <label for="InstanceName">Instance Name</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="input-field">
+                <select id="InstanceType" required>
+                    <option value="m5.large">m5.large</option>
+                    <option value="m5.xlarge">m5.xlarge</option>
+                    <option value="m5.2xlarge">m5.2xlarge</option>
+                    <option value="m5.4xlarge">m5.4xlarge</option>
+                    <option value="m5.8xlarge">m5.8xlarge</option>
+                </select>
+                <label>Instance Type</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="input-field">
+                <select id="JmeterVersion" required>
+                    <option value="5.5">5.5</option>
+                    <option value="5.6">5.6</option>
+                    <option value="5.7">5.7</option>
                 </select>
                 <label>JMeter version</label>
             </div>
         </div>
         <div class="row">
             <div class="input-field">
-                <select id="MasterCount" required>
+                <select id="MasterNo" required>
                     <option value="1">1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
@@ -176,7 +199,7 @@ closeConnection($conn);
         </div>
         <div class="row">
             <div class="input-field">
-                <select id="SlaveCount" required>
+                <select id="SlaveNo" required>
                     <option value="1">1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
